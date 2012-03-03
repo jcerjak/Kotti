@@ -238,3 +238,22 @@ class TestLocalGroup(UnitTestBase):
         assert lg.node is lg2.node
         assert lg.principal_name == lg2.principal_name
         assert lg.group_name == lg2.group_name
+
+
+class TestTag(UnitTestBase):
+    def test_empty(self):
+        from kotti.resources import get_root
+        get_root().tags == []
+
+    def test_add(self):
+        from kotti import DBSession
+        from kotti.resources import get_root
+        from kotti.resources import Tag
+
+        root = get_root()
+        brilliant = Tag(u'brilliant')
+        root.tags = [brilliant]
+        res = DBSession.query(Tag).filter(Tag.items.contains(root)).all()
+        assert res == [brilliant]
+        assert brilliant.items == [root]
+        assert root.tags == [brilliant]

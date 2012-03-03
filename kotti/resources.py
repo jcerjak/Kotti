@@ -150,6 +150,10 @@ class LocalGroup(object):
         kwargs.setdefault('group_name', self.group_name)
         return self.__class__(**kwargs)
 
+class Tag(object):
+    def __init__(self, title):
+        self.title = title
+
 class TypeInfo(object):
     addable_to = ()
 
@@ -249,6 +253,16 @@ local_groups_table = Table('local_groups', metadata,
     UniqueConstraint('node_id', 'principal_name', 'group_name'),
 )
 
+tags_table = Table('tags', metadata,
+    Column('id', Integer, primary_key=True),
+    Column('title', Unicode(100), unique=True),
+)
+
+tags_to_contents = Table('contents_to_tags', metadata,
+    Column('tag_id', ForeignKey('tags.id'), nullable=False),
+    Column('node_id', ForeignKey('nodes.id'), nullable=False),
+)
+
 contents = Table('contents', metadata,
     Column('id', Integer, ForeignKey('nodes.id'), primary_key=True),
     Column('default_view', String(50)),
@@ -298,8 +312,24 @@ mapper(
 
 mapper(LocalGroup, local_groups_table)
 
-mapper(Content, contents, inherits=Node, polymorphic_identity='content')
+mapper(Tag, tags_table)
+
+mapper(
+    Content,
+    contents,
+    inherits=Node,
+    polymorphic_identity='content',
+    properties={
+        'tags': relation(
+            Tag,
+            secondary=tags_to_contents,
+            backref=backref('items'),
+        ),
+    },
+)
+
 mapper(Document, documents, inherits=Content, polymorphic_identity='document')
+
 mapper(File, files, inherits=Content, polymorphic_identity='file')
 
 class Settings(object):
