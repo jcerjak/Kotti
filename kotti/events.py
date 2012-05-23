@@ -5,7 +5,7 @@ of specific object types.
 To subscribe to any event, write::
 
   def all_events_handler(event):
-      print event  
+      print event
   kotti.events.listeners[object].append(all_events_handler)
 
 To subscribe only to *ObjectInsert* events of *Document* types,
@@ -31,10 +31,10 @@ registered.
 """
 
 from collections import defaultdict
-try: # pragma: no cover
+try:  # pragma: no cover
     from collections import OrderedDict
-    OrderedDict # pyflakes
-except ImportError: # pragma: no cover
+    OrderedDict  # pyflakes
+except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
 from datetime import datetime
 
@@ -46,6 +46,8 @@ from pyramid.security import authenticated_userid
 from kotti import DBSession
 from kotti.resources import Node
 from kotti.resources import Content
+from kotti.resources import Tag
+from kotti.resources import TagsToContents
 from kotti.security import list_groups
 from kotti.security import list_groups_raw
 from kotti.security import set_groups
@@ -62,6 +64,9 @@ class ObjectUpdate(ObjectEvent):
     pass
 
 class ObjectDelete(ObjectEvent):
+    pass
+
+class ObjectAfterDelete(ObjectEvent):
     pass
 
 class DispatcherDict(defaultdict, OrderedDict):
@@ -118,7 +123,7 @@ class ObjectEventDispatcher(DispatcherDict):
       ...     return 'sub'
       >>> def all_listener(event):
       ...     return 'all'
-      
+
       >>> dispatcher = ObjectEventDispatcher()
       >>> dispatcher[(ObjectEvent, BaseObject)].append(base_listener)
       >>> dispatcher[(ObjectInsert, SubObject)].append(subobj_insert_listener)
@@ -163,6 +168,9 @@ def _before_update(mapper, connection, target):
 def _before_delete(mapper, conection, target):
     notify(ObjectDelete(target, get_current_request()))
 
+def _after_delete(mapper, conection, target):
+    notify(ObjectAfterDelete(target, get_current_request()))
+
 def set_owner(event):
     obj, request = event.object, event.request
     if request is not None and isinstance(obj, Node) and obj.owner is None:
@@ -184,8 +192,12 @@ def set_creation_date(event):
 def set_modification_date(event):
     event.object.modification_date = datetime.now()
 
+def delete_orphaned_tags(event):
+    DBSession.query(Tag).filter(~Tag.content_tags.any()).delete(
+        synchronize_session=False)
+
 _WIRED_SQLALCHMEY = False
-def wire_sqlalchemy(): # pragma: no cover
+def wire_sqlalchemy():  # pragma: no cover
     global _WIRED_SQLALCHMEY
     if _WIRED_SQLALCHMEY:
         return
@@ -194,9 +206,12 @@ def wire_sqlalchemy(): # pragma: no cover
     sqlalchemy.event.listen(mapper, 'before_insert', _before_insert)
     sqlalchemy.event.listen(mapper, 'before_update', _before_update)
     sqlalchemy.event.listen(mapper, 'before_delete', _before_delete)
+    sqlalchemy.event.listen(mapper, 'after_delete', _after_delete)
 
 def includeme(config):
     wire_sqlalchemy()
     objectevent_listeners[(ObjectInsert, Content)].append(set_owner)
     objectevent_listeners[(ObjectInsert, Content)].append(set_creation_date)
     objectevent_listeners[(ObjectUpdate, Content)].append(set_modification_date)
+    objectevent_listeners[(ObjectAfterDelete, TagsToContents)].append(
+        delete_orphaned_tags)

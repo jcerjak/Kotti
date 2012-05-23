@@ -5,7 +5,6 @@ from pyramid.security import has_permission
 from pyramid.url import resource_url
 import colander
 from deform.widget import RichTextWidget
-from deform.widget import TextAreaWidget
 
 from kotti import get_settings
 from kotti import DBSession
@@ -13,25 +12,13 @@ from kotti.resources import Node
 from kotti.resources import Document
 from kotti.resources import get_root
 from kotti.util import _
+from kotti.util import title_to_name
 from kotti.util import ViewLink
-from kotti.views.util import EditFormView
-from kotti.views.util import AddFormView
-from kotti.views.util import disambiguate_name
+from kotti.views.form import ContentSchema
+from kotti.views.form import EditFormView
+from kotti.views.form import AddFormView
 from kotti.views.util import ensure_view_selector
 from kotti.views.util import nodes_tree
-from kotti.util import title_to_name
-
-
-class ContentSchema(colander.MappingSchema):
-    title = colander.SchemaNode(
-        colander.String(),
-        title=_(u'Title'))
-    description = colander.SchemaNode(
-        colander.String(),
-        title=_('Description'),
-        widget=TextAreaWidget(cols=40, rows=5),
-        missing=u"",
-        )
 
 
 class DocumentSchema(ContentSchema):
@@ -41,6 +28,7 @@ class DocumentSchema(ContentSchema):
         widget=RichTextWidget(theme='advanced', width=790, height=500),
         missing=u"",
         )
+
 
 def content_type_factories(context, request):
     """Drop down menu for Add button in editor bar.
@@ -118,9 +106,8 @@ def paste_node(context, request):
         copy = item.copy()
         name = copy.name
         if not name:  # for root
-            name = title_to_name(copy.title)
-        while name in context.keys():
-            name = disambiguate_name(name)
+            name = copy.title
+        name = title_to_name(name, blacklist=context.keys())
         copy.name = name
         context.children.append(copy)
     request.session.flash(_(u'${title} pasted.',
@@ -183,9 +170,9 @@ def rename_node(context, request):
         if not name or not title:
             request.session.flash(_(u'Name and title are required.'), 'error')
         else:
-            context.name = name.replace('/','')
+            context.name = name.replace('/', '')
             context.title = title
-            request.session.flash(_(u'Item renamed'),'success')
+            request.session.flash(_(u'Item renamed'), 'success')
             location = resource_url(context, request)
             return HTTPFound(location=location)
     return {}

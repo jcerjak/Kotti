@@ -14,7 +14,8 @@ from deform.widget import CheckedPasswordWidget
 from deform.widget import CheckboxChoiceWidget
 from deform.widget import SequenceWidget
 
-from kotti.message import send_set_password
+from kotti.message import email_set_password
+from kotti.resources import get_root
 from kotti.security import USER_MANAGEMENT_ROLES
 from kotti.security import ROLES
 from kotti.security import SHARING_ROLES
@@ -24,15 +25,15 @@ from kotti.security import list_groups_raw
 from kotti.security import list_groups_ext
 from kotti.security import set_groups
 from kotti.util import _
+from kotti.views.form import EditFormView
 from kotti.views.site_setup import CONTROL_PANEL_LINKS
 from kotti.views.util import template_api
 from kotti.views.util import is_root
 from kotti.views.util import AddFormView
-from kotti.views.util import EditFormView
 
 def roles_form_handler(context, request, available_role_names, groups_lister):
     changed = []
-    
+
     if 'apply' in request.POST:
         p_to_r = {}
         for name in request.params:
@@ -255,8 +256,8 @@ def _massage_groups_out(appstruct):
     """
     d = appstruct
     groups = [g.split(u'group:')[1] for g in d['groups']
-              if g.startswith(u'group:')]
-    roles = [r for r in d['groups'] if r.startswith(u'role:')]
+              if g and g.startswith(u'group:')]
+    roles = [r for r in d['groups'] if r and r.startswith(u'role:')]
     d['groups'] = groups
     d['roles'] = roles
     return d
@@ -285,7 +286,7 @@ class UserAddFormView(AddFormView):
         send_email = appstruct.pop('send_email', False)
         get_principals()[name] = appstruct
         if send_email:
-            send_set_password(get_principals()[name], self.request)
+            email_set_password(get_principals()[name], self.request)
         self.request.session.flash(_(u'${title} added.',
                                      mapping=dict(title=appstruct['title'])),
                                      'success')
@@ -377,19 +378,39 @@ class UserManageFormView(UserEditFormView):
         _massage_groups_in(appstruct)
         return super(UserEditFormView, self).save_success(appstruct)
 
+    def cancel_success(self, appstruct):
+        self.request.session.flash(_(u'No changes made.'), 'info')
+        location = "%s/@@setup-users" % self.request.application_url
+        return HTTPFound(location=location)
+    cancel_failure = cancel_success
+
+
+class GroupManageFormView(UserManageFormView):
+    def schema_factory(self):
+        schema = group_schema()
+        del schema['name']
+        del schema['active']
+        return schema
+
+
 def user_manage(context, request):
-    username = request.params['name']
-    principal = get_principals()[username]
+    user_or_group = request.params['name']
+    principal = get_principals()[user_or_group]
+
+    is_group = user_or_group.startswith("group:")
+    principal_type = _(u"Group") if is_group else _(u"User")
 
     api = template_api(
         context, request,
-        page_title=_(u"Edit User - ${title}",
-                     mapping=dict(title=context.title)),
+        page_title=_(u"Edit ${principal_type} - ${title}",
+                     mapping=dict(principal_type=principal_type,
+                                  title=context.title)),
         cp_links=CONTROL_PANEL_LINKS,
         principal=principal,
         )
 
-    form = UserManageFormView(principal, request)()
+    form_view = GroupManageFormView if is_group else UserManageFormView
+    form = form_view(principal, request)()
     if request.is_response(form):
         return form
 
