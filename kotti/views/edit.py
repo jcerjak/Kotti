@@ -4,7 +4,8 @@ from pyramid.location import inside
 from pyramid.security import has_permission
 from pyramid.url import resource_url
 import colander
-from deform.widget import RichTextWidget
+from kotti.views.widget import RichTextWidget
+import kotti.views.macro as macro
 
 from kotti import get_settings
 from kotti import DBSession
@@ -20,12 +21,12 @@ from kotti.views.form import AddFormView
 from kotti.views.util import ensure_view_selector
 from kotti.views.util import nodes_tree
 
-
 class DocumentSchema(ContentSchema):
     body = colander.SchemaNode(
         colander.String(),
         title=_(u'Body'),
-        widget=RichTextWidget(theme='advanced', width=790, height=500),
+        widget=RichTextWidget(theme='advanced', width=790, height=500,
+                              macros=macro.registry.all()),
         missing=u"",
         )
 

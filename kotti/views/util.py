@@ -35,6 +35,7 @@ from kotti.views.form import BaseFormView
 from kotti.views.form import AddFormView
 from kotti.views.form import EditFormView
 from kotti.views.slots import slot_events
+import kotti.views.macro
 
 
 def template_api(context, request, **kwargs):
@@ -137,6 +138,9 @@ class TemplateAPI(object):
         self.bare = bare
         self.slots = Slots(context, request)
         self.__dict__.update(kwargs)
+
+    def process_macros(self, body):
+        return kotti.views.macro.process_macro(self.context, self.request, body)
 
     def macro(self, asset_spec, macro_name='main'):
         if self.bare and asset_spec in (

@@ -6,6 +6,30 @@ from pyramid.view import render_view_to_response
 from kotti.resources import IContent
 from kotti.resources import Document
 
+def render_view_to_response(context, request, name='', secure=True, **data):
+    """
+    Copied from pyramid.view
+    Additional arguments may be passed directly to the view.
+    """
+    provides = [IViewClassifier] + map_(providedBy, (request, context))
+    try:
+        reg = request.registry
+    except AttributeError:
+        reg = get_current_registry()
+    view = reg.adapters.lookup(provides, IView, name=name)
+    if view is None:
+        return None
+
+    if not secure:
+        # the view will have a __call_permissive__ attribute if it's
+        # secured; otherwise it won't.
+        view = getattr(view, '__call_permissive__', view)
+
+    # if this view is secured, it will raise a Forbidden
+    # appropriately if the executing user does not have the proper
+    # permission
+    return view(context, request, **data)
+
 def view_content_default(context, request):
     """This view is always registered as the default view for any Content.
 
