@@ -57,8 +57,8 @@ def register(slot, objtype, renderer):
     The ``objtype`` argument may be specified to limit rendering to
     special types of contexts.
 
-    The ``renderer`` argument is the callable that receives an
-    ``ObjectEvent`` as its single argument and returns HTML for
+    The ``renderer`` argument is the callable that receives the
+    context and request as its arguments and returns HTML for
     inclusion.
     """
     objectevent_listeners[(slot, objtype)].append(
